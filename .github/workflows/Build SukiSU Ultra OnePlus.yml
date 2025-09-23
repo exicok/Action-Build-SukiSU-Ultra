@@ -620,18 +620,22 @@ jobs:
           patch -p1 -F 3 < lz4k_oplus.patch || true
           echo 'lz4k_oplus_patch完成'
 
-      - name: Apply LSM
+      - name: Apply SCHED
+        if: ${{ github.event.inputs.SCHED == 'true' }}
+        run: |
+          cd kernel_workspace/kernel_platform/common
+          git clone https://github.com/HanKuCha/sched_ext.git
+          cp -r ./sched_ext/* ./kernel/sched
+          rm -rf ./sched_ext/.git
+          cd ./kernel/sched
+
+      - name: Apply LSM_BBG
         if: ${{ github.event.inputs.LSM == 'true' }}
         run: |
-          cd kernel_workspace/kernel_platform
+          cd kernel_workspace/kernel_platform/common
           echo "正在启用内核级基带保护支持…"
-          cd ./common/security
-          wget https://github.com/vc-teahouse/Baseband-guard/archive/refs/heads/main.zip
-          unzip -q main.zip
-          mv "Baseband-guard-main" baseband-guard
-          printf '\nobj-$(CONFIG_SECURITY_BASEBAND_GUARD) += baseband-guard/\n' >> ./Makefile
-          sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/landlock/landlock,baseband_guard/ } }' ./Kconfig
-          sed -i ':a; $!{N; ba}; s/\(endmenu\)\(.*\)$/source "security\/baseband-guard\/Kconfig"\n\1\2/' ./Kconfig
+          curl -LSs https://raw.githubusercontent.com/vc-teahouse/Baseband-guard/main/setup.sh | bash
+          sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/bpf/bpf,baseband_guard/ } }' ./security/Kconfig
 
       # 配置信息,带*为附加项目,具有一定危险性和不确定性
       - name: Add Configuration Settings
@@ -711,16 +715,6 @@ jobs:
 
           # 移除构建审查
           sed -i 's/check_defconfig//' ./common/build.config.gki
-
-      # 风驰内核，以 sm8750 为主体，其他 CPU 可能无效或者无法跑出
-      - name: Add sched_ext
-        if: ${{ github.event.inputs.SCHED == 'true' }}
-        run: |
-          cd kernel_workspace/kernel_platform/
-          git clone https://github.com/HanKuCha/sched_ext.git
-          cp -r ./sched_ext/* ./common/kernel/sched
-          rm -rf ./sched_ext/.git
-          cd common/kernel/sched
 
       # Custom kernel build time, without adding #1 SMP PREEMPT 自定义内核构建时间，不要加入#1 SMP PREEMPT
       - name: Custom BUILD_TIME
